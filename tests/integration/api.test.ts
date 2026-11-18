@@ -95,19 +95,28 @@ describe('Integration — API Endpoints', () => {
     expect(rangeRes.status).toBe(206);
     expect(rangeRes.headers.get('accept-ranges')).toBe('bytes');
     expect(rangeRes.headers.get('content-range')).toMatch(/^bytes 0-1023\/\d+$/);
-    const rangeBuf = await rangeRes.arrayBuffer();
+    const rangeBuf = new Uint8Array(await rangeRes.arrayBuffer());
     expect(rangeBuf.byteLength).toBe(1024);
+    expect(String.fromCharCode(...rangeBuf.slice(0, 4))).toBe('RIFF');
+    expect(String.fromCharCode(...rangeBuf.slice(8, 12))).toBe('WAVE');
+
+    // Open-ended range verification (bytes=1024-)
+    const tailRes = await fetch(`${BASE_URL}${data.escalation.audioUrl}`, {
+      headers: { Range: 'bytes=1024-' },
+    });
+    expect(tailRes.status).toBe(206);
+    expect(tailRes.headers.get('content-range')).toMatch(/^bytes 1024-\d+\/\d+$/);
   });
 
   it('GET /api/channels/:channelId/messages returns listing-specific seller dialogue for all 4 listings', async () => {
     const channelAssertions = [
-      { channelId: 'channel_alex_priya', sellerName: 'Priya Patel' },
-      { channelId: 'channel_listing_2', sellerName: 'Priya Patel' },
-      { channelId: 'channel_listing_3', sellerName: 'Elena Rostova' },
-      { channelId: 'channel_listing_4', sellerName: 'Marcus Vance' },
+      { channelId: 'channel_alex_priya', sellerName: 'Priya Patel', keyword: 'Deeded Parking' },
+      { channelId: 'channel_listing_2', sellerName: 'Priya Patel', keyword: 'Private Sky Terrace' },
+      { channelId: 'channel_listing_3', sellerName: 'Elena Rostova', keyword: 'Infinity Pool' },
+      { channelId: 'channel_listing_4', sellerName: 'Marcus Vance', keyword: 'Zoned Live/Work' },
     ];
 
-    for (const { channelId, sellerName } of channelAssertions) {
+    for (const { channelId, sellerName, keyword } of channelAssertions) {
       const res = await fetch(`${BASE_URL}/api/channels/${channelId}/messages`);
       expect(res.status).toBe(200);
       const msgs = await res.json();
@@ -116,6 +125,7 @@ describe('Integration — API Endpoints', () => {
       const sellerMsgs = msgs.filter((m: any) => m.senderRole === 'seller');
       expect(sellerMsgs.length).toBeGreaterThanOrEqual(1);
       expect(sellerMsgs.every((m: any) => m.senderName === sellerName)).toBe(true);
+      expect(msgs.some((m: any) => m.content.includes(keyword))).toBe(true);
     }
   });
 });

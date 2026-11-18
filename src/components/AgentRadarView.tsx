@@ -315,11 +315,15 @@ export const AgentRadarView: React.FC<AgentRadarViewProps> = ({
                         preload="auto"
                         controls
                         onLoadedMetadata={(e) => updateAudioMeta(esc.id, e.currentTarget)}
+                        onLoadedData={(e) => updateAudioMeta(esc.id, e.currentTarget)}
                         onCanPlay={(e) => updateAudioMeta(esc.id, e.currentTarget)}
                         onTimeUpdate={(e) => updateAudioMeta(esc.id, e.currentTarget)}
                         onPlay={() => setPlayingId(esc.id)}
                         onPause={() => setPlayingId((prev) => (prev === esc.id ? null : prev))}
-                        onEnded={() => setPlayingId(null)}
+                        onEnded={(e) => {
+                          setPlayingId(null);
+                          updateAudioMeta(esc.id, e.currentTarget);
+                        }}
                         className="w-full mt-2"
                       />
                     ) : (

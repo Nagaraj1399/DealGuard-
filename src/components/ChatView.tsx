@@ -33,11 +33,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [pendingText, setPendingText] = useState<string | null>(null);
+  const [isSellerTyping, setIsSellerTyping] = useState(false);
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sellerTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelId = getChannelIdForListing(listing.id);
+
+  useEffect(() => {
+    setIsSellerTyping(false);
+    setPendingText(null);
+    return () => {
+      if (sellerTypingTimerRef.current) {
+        clearTimeout(sellerTypingTimerRef.current);
+      }
+    };
+  }, [listing.id]);
 
   const scrollToBottom = (instant = false) => {
     const container = scrollContainerRef.current;
@@ -53,11 +65,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     return () => cancelAnimationFrame(raf);
   }, [listing.id]);
 
-  // Auto-scroll whenever messages append or pending analyzing indicator appears
+  // Auto-scroll whenever messages change/append or pending/typing indicators appear
   useEffect(() => {
     const raf = requestAnimationFrame(() => scrollToBottom(false));
     return () => cancelAnimationFrame(raf);
-  }, [messages.length, pendingText]);
+  }, [listing.id, messages, pendingText, isSellerTyping]);
 
   // Compute latest radar stats
   const latestClassification = [...messages]
@@ -89,6 +101,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
       });
 
       onMessageSent(res.message, res.classification, res.escalation);
+
+      // Show seller composing indicator + reply on benign buyer inquiries
+      const isBenignBuyerTurn =
+        activeUser.role === 'buyer' &&
+        !res.classification?.trust_flag &&
+        !res.escalation;
+
+      if (isBenignBuyerTurn) {
+        setIsSellerTyping(true);
+        sellerTypingTimerRef.current = setTimeout(async () => {
+          try {
+            const replyRes = await sendMessage(channelId, {
+              senderId: listing.sellerId,
+              senderName: listing.sellerName,
+              senderRole: 'seller',
+              content: `Thanks ${activeUser.name.split(' ')[0]}! I've noted that for ${listing.title} (${listing.formattedPrice}) — happy to confirm the details and schedule your visit.`,
+              listingId: listing.id,
+            });
+            onMessageSent(replyRes.message, replyRes.classification, replyRes.escalation);
+          } catch {
+            // Non-blocking if reply simulation fails
+          } finally {
+            setIsSellerTyping(false);
+          }
+        }, 900);
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
     } finally {
@@ -273,6 +311,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span>Guardian Copilot analyzing…</span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Seller Typing Indicator */}
+            {isSellerTyping && (
+              <div className="flex flex-col items-start">
+                <div className="flex items-baseline gap-2 mb-1 px-1">
+                  <span className="text-xs font-semibold text-neutral-300">{listing.sellerName}</span>
+                  <span className="text-[11px] text-emerald-400 font-mono">typing…</span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-xs border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs text-neutral-400">
+                  <span className="inline-flex gap-1 mr-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:120ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:240ms]" />
+                  </span>
+                  <span>{listing.sellerName} is composing a reply…</span>
                 </div>
               </div>
             )}

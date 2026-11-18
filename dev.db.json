@@ -160,7 +160,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Hi Priya, I saw the Marina Boulevard 2-bed listing. Is it still available for a viewing this Saturday?",
-      "timestamp": 1794898524193,
+      "timestamp": 1795010650163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -175,7 +175,7 @@
       "senderName": "Priya Patel",
       "senderRole": "seller",
       "content": "Hello Alex! Yes, absolutely. Saturday at 11:00 AM or 2:00 PM are both open. The unit gets wonderful south-west sunlight and Panoramic Bay Views.",
-      "timestamp": 1794902124193
+      "timestamp": 1795014250163
     },
     {
       "id": "msg_seed_3",
@@ -184,7 +184,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "2:00 PM works well for me. Does the Low HOA ($420/mo) allow pets and is the Deeded Parking space covered?",
-      "timestamp": 1794905724193,
+      "timestamp": 1795017850163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -199,7 +199,7 @@
       "senderName": "Priya Patel",
       "senderRole": "seller",
       "content": "Deeded Parking space #14 is directly next to the elevator! And yes, pets under 40 lbs are welcome.",
-      "timestamp": 1794907524193
+      "timestamp": 1795019650163
     },
     {
       "id": "msg_seed_l2_1",
@@ -208,7 +208,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Hi Priya, I am interested in Glasshouse Penthouse Suite on Market St. Is the Private Sky Terrace exclusive to Penthouse 38?",
-      "timestamp": 1794898524193,
+      "timestamp": 1795010650163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -223,7 +223,7 @@
       "senderName": "Priya Patel",
       "senderRole": "seller",
       "content": "Hello Alex! Yes, Penthouse 38 includes private keyed access to the wrap-around Private Sky Terrace, a bespoke Boffi Designer Kitchen, and a temperature-controlled Wine Cellar.",
-      "timestamp": 1794902124193
+      "timestamp": 1795014250163
     },
     {
       "id": "msg_seed_l2_3",
@@ -232,7 +232,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "That sounds great. Does the building offer 24/7 Valet & Doorman service for guests?",
-      "timestamp": 1794905724193,
+      "timestamp": 1795017850163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -247,7 +247,7 @@
       "senderName": "Priya Patel",
       "senderRole": "seller",
       "content": "Yes, 24/7 Valet & Doorman concierge service is included. Would you like to schedule a sunset viewing?",
-      "timestamp": 1794907524193
+      "timestamp": 1795019650163
     },
     {
       "id": "msg_seed_l3_1",
@@ -256,7 +256,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Hi Elena, I saw Cedarwood Modern Villa on Crestview Lane. Is the Infinity Pool heated year-round by the Zero-Carbon Solar Array?",
-      "timestamp": 1794898524193,
+      "timestamp": 1795010650163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -271,7 +271,7 @@
       "senderName": "Elena Rostova",
       "senderRole": "seller",
       "content": "Hello Alex! Yes, the Zero-Carbon Solar Array powers both the Infinity Pool heat pump and the smart home automation year-round.",
-      "timestamp": 1794902124193
+      "timestamp": 1795014250163
     },
     {
       "id": "msg_seed_l3_3",
@@ -280,7 +280,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Wonderful. Does the EV Charging Garage fit two vehicles, and is the Private Garden fully enclosed?",
-      "timestamp": 1794905724193,
+      "timestamp": 1795017850163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -295,7 +295,7 @@
       "senderName": "Elena Rostova",
       "senderRole": "seller",
       "content": "Yes, the EV Charging Garage has dual Level-2 chargers for two SUVs, and the Private Garden is bordered by mature cedar hedges for total privacy.",
-      "timestamp": 1794907524193
+      "timestamp": 1795019650163
     },
     {
       "id": "msg_seed_l4_1",
@@ -304,7 +304,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Hi Marcus, I love the Heritage Warehouse Loft on Industrial Way. Since it is Zoned Live/Work, can I host design clients in the front studio?",
-      "timestamp": 1794898524193,
+      "timestamp": 1795010650163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -319,7 +319,7 @@
       "senderName": "Marcus Vance",
       "senderRole": "seller",
       "content": "Hey Alex! Absolutely — it is officially Zoned Live/Work, and the 14ft Ceilings with Exposed Historic Brick make an incredible client studio.",
-      "timestamp": 1794902124193
+      "timestamp": 1795014250163
     },
     {
       "id": "msg_seed_l4_3",
@@ -328,7 +328,7 @@
       "senderName": "Alex Chen",
       "senderRole": "buyer",
       "content": "Great to hear. Is the Custom Steelwork mezzanine rated for heavy studio equipment, and is freight elevator access included?",
-      "timestamp": 1794905724193,
+      "timestamp": 1795017850163,
       "classification": {
         "trust_flag": false,
         "trust_reason": null,
@@ -343,7 +343,7 @@
       "senderName": "Marcus Vance",
       "senderRole": "seller",
       "content": "Yes, I designed the Custom Steelwork mezzanine with structural steel framing, and Loft 204 has direct key-fob access to the freight elevator.",
-      "timestamp": 1794907524193
+      "timestamp": 1795019650163
     }
   ],
   "escalations": []

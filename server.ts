@@ -228,21 +228,27 @@ app.post('/api/copilot/escalate', (req, res) => {
   try {
     const { channelId, listingId, buyerName, buyerMessage } = req.body;
     const escalationId = `esc_${Date.now()}`;
-    const propertyTitle = 'The Horizon Marina Residence';
+    const listing = listingId ? db.getListing(listingId) : db.getListings()[0];
+    const propertyTitle = listing ? listing.title : 'The Horizon Marina Residence';
 
     const transcript = `Guardian Escalation Briefing: Manual inspection trigger for ${buyerName || 'Buyer'} on ${propertyTitle}. Last message: "${buyerMessage || 'High urgency buyer enquiry'}". Recommended action: connect via direct voice line.`;
-    const audioBuffer = generateBriefingWav(transcript);
-    const audioUrl = saveAudio(escalationId, audioBuffer);
+    let audioUrl = '';
+    try {
+      const audioBuffer = generateBriefingWav(transcript);
+      audioUrl = saveAudio(escalationId, audioBuffer);
+    } catch (audioErr) {
+      console.warn('Audio synthesis failed on manual escalation:', audioErr);
+    }
 
     const esc: Escalation = {
       id: escalationId,
       channelId: channelId || 'channel_alex_priya',
-      listingId: listingId || 'listing_1',
+      listingId: listing ? listing.id : listingId || 'listing_1',
       listingTitle: propertyTitle,
       buyerId: 'buyer_alex',
       buyerName: buyerName || 'Alex Chen',
-      sellerId: 'seller_priya',
-      sellerName: 'Priya Patel',
+      sellerId: listing ? listing.sellerId : 'seller_priya',
+      sellerName: listing ? listing.sellerName : 'Priya Patel',
       triggerReason: 'risk_of_loss',
       leadScore: 35,
       riskOfLoss: 92,

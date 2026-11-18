@@ -168,6 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => onNavigate('chat')}
+          aria-label="Buyer↔Seller Chat"
           className={`flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
             currentView === 'chat' ? 'text-white' : 'text-neutral-400 hover:text-neutral-200'
           }`}
