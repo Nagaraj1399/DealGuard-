@@ -76,7 +76,7 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
     const listing = listingId ? db.getListing(listingId) : db.getListings()[0];
     const previousMessages = db.getMessages(channelId);
 
-    // Run Guardian Copilot Classifier (fail-safe so chat send never breaks)
+    // Run Guardian Copilot Real LLM Classifier (fail-safe so chat send never breaks)
     let classification = {
       trust_flag: false,
       trust_reason: null as string | null,
@@ -90,7 +90,8 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
           senderName: m.senderName,
           senderRole: m.senderRole,
           content: m.content,
-        }))
+        })),
+        senderRole || 'buyer'
       );
     } catch (classifyErr) {
       console.warn('Classifier failed, sending message unclassified:', classifyErr);
@@ -115,60 +116,56 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
     db.addMessage(newMessage);
 
     let escalationEvent: Escalation | null = null;
+    let escalationDeduplicated = false;
 
     // Check if Escalation threshold met (lead_score >= 80 OR risk_of_loss >= 80)
     if (classification.lead_score >= 80 || classification.risk_of_loss >= 80) {
+      const now = Date.now();
       const isRisk = classification.risk_of_loss >= 80;
-      const escalationId = `esc_${Date.now()}`;
-      
-      const triggerReason = classification.lead_score >= 80 && classification.risk_of_loss >= 80
-        ? 'both'
-        : classification.risk_of_loss >= 80
-        ? 'risk_of_loss'
-        : 'lead_score';
+      const existingActive = db.getActiveEscalationForChannel(channelId);
+      const escalationId = existingActive ? existingActive.id : `esc_${now}`;
+      escalationDeduplicated = Boolean(existingActive);
 
-      // (a) System message in buyer-seller channel
+      const triggerReason =
+        classification.lead_score >= 80 && classification.risk_of_loss >= 80
+          ? 'both'
+          : classification.risk_of_loss >= 80
+          ? 'risk_of_loss'
+          : 'lead_score';
+
+      // (a) Single deduplicated system message in buyer-seller channel
       const systemNoticeText = isRisk
         ? 'Connecting you with a senior DealGuard broker specialist to review priority viewings and terms…'
         : 'Connecting you with a DealGuard escrow partner to prepare reservation documentation…';
 
-      const systemMsg: Message = {
-        id: `sys_${Date.now()}`,
-        channelId,
-        senderId: 'system_copilot',
-        senderName: 'DealGuard Guardian',
-        senderRole: 'system',
-        content: systemNoticeText,
-        timestamp: Date.now() + 50,
-        isSystemNotice: true,
-      };
-      db.addMessage(systemMsg);
+      db.upsertSystemNotice(channelId, escalationId, systemNoticeText);
 
       // (b) Generate one-paragraph spoken briefing for agent
       const propertyTitle = listing ? listing.title : 'Marina Residence';
       const propertyPrice = listing ? listing.formattedPrice : '$1.28M';
-      
+
       const briefingTranscript = isRisk
-        ? `Guardian Escalation Briefing: High walkaway risk detected for buyer ${senderName || 'Alex Chen'} on ${propertyTitle} (${propertyPrice}). After discussion regarding weekend viewings, buyer stated: "${content}". Risk of loss is currently ${classification.risk_of_loss}%. Recommend immediate intervention: call buyer directly with priority weekend schedule access.`
+        ? `Guardian Escalation Briefing: High walkaway risk detected for buyer ${senderName || 'Alex Chen'} on ${propertyTitle} (${propertyPrice}). Buyer stated: "${content}". Risk of loss is currently ${classification.risk_of_loss}%. Recommend immediate intervention: call buyer directly with priority weekend schedule access.`
         : `Guardian Escalation Briefing: High-intent commitment detected for buyer ${senderName || 'Alex Chen'} on ${propertyTitle} (${propertyPrice}). Lead readiness score is ${classification.lead_score}%. Buyer expressed: "${content}". Recommend immediate human follow-up to coordinate contract deposit and escrow packet.`;
 
       // (c) Synthesize audio WAV buffer gracefully (escalation still succeeds if audio fails)
       let audioUrl = '';
       try {
         const audioBuffer = generateBriefingWav(briefingTranscript);
-        audioUrl = saveAudio(escalationId, audioBuffer);
+        const baseAudioUrl = saveAudio(escalationId, audioBuffer);
+        audioUrl = `${baseAudioUrl}?v=${now}`;
       } catch (audioErr) {
         console.warn('Audio synthesis failed, posting text-only escalation:', audioErr);
       }
 
-      // (d) Add escalation record
+      // (d) Upsert single active escalation record for this channel
       escalationEvent = {
         id: escalationId,
         channelId,
         listingId: listing ? listing.id : 'listing_1',
         listingTitle: propertyTitle,
-        buyerId: senderRole === 'buyer' ? senderId : 'buyer_alex',
-        buyerName: senderRole === 'buyer' ? senderName : 'Alex Chen',
+        buyerId: senderRole === 'buyer' ? senderId : existingActive?.buyerId || 'buyer_alex',
+        buyerName: senderRole === 'buyer' ? senderName : existingActive?.buyerName || 'Alex Chen',
         sellerId: listing ? listing.sellerId : 'seller_priya',
         sellerName: listing ? listing.sellerName : 'Priya Patel',
         triggerReason,
@@ -176,21 +173,21 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
         riskOfLoss: classification.risk_of_loss,
         briefingTranscript,
         audioUrl,
-        timestamp: Date.now(),
+        timestamp: now,
         status: 'active',
         lastMessageText: content,
       };
       db.addEscalation(escalationEvent);
 
-      // Post voice card into Agent Group Channel
+      // Upsert single voice card in Agent Group Channel
       const agentVoiceMsg: Message = {
-        id: `agent_voice_${Date.now()}`,
+        id: `agent_voice_${now}`,
         channelId: 'channel_agent_group',
         senderId: 'guardian_copilot',
         senderName: 'Guardian Copilot',
         senderRole: 'system',
         content: `🚨 Proactive Escalation: ${propertyTitle} · ${isRisk ? 'Disengagement Alert' : 'Hot Closing Lead'}`,
-        timestamp: Date.now() + 100,
+        timestamp: now + 100,
         isEscalated: true,
         escalationId,
         audioBriefingUrl: audioUrl || undefined,
@@ -198,13 +195,14 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
         leadScore: classification.lead_score,
         riskOfLoss: classification.risk_of_loss,
       };
-      db.addMessage(agentVoiceMsg);
+      db.upsertAgentVoiceMessage(escalationId, agentVoiceMsg);
     }
 
     res.json({
       message: newMessage,
       classification,
       escalation: escalationEvent,
+      deduplicated: escalationDeduplicated,
     });
   } catch (err: any) {
     console.error('Error posting message:', err);
@@ -215,19 +213,22 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
 // 6. Direct classification endpoint
 app.post('/api/copilot/classify', async (req, res) => {
   try {
-    const { message, history } = req.body;
-    const result = await classifyMessage(message || '', history || []);
+    const { message, history, senderRole } = req.body;
+    const result = await classifyMessage(message || '', history || [], senderRole);
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 7. Direct manual escalate endpoint
+// 7. Direct manual escalate endpoint (deduplicated per active channel)
 app.post('/api/copilot/escalate', (req, res) => {
   try {
     const { channelId, listingId, buyerName, buyerMessage } = req.body;
-    const escalationId = `esc_${Date.now()}`;
+    const now = Date.now();
+    const resolvedChannelId = channelId || 'channel_alex_priya';
+    const existingActive = db.getActiveEscalationForChannel(resolvedChannelId);
+    const escalationId = existingActive ? existingActive.id : `esc_${now}`;
     const listing = listingId ? db.getListing(listingId) : db.getListings()[0];
     const propertyTitle = listing ? listing.title : 'The Horizon Marina Residence';
 
@@ -235,14 +236,15 @@ app.post('/api/copilot/escalate', (req, res) => {
     let audioUrl = '';
     try {
       const audioBuffer = generateBriefingWav(transcript);
-      audioUrl = saveAudio(escalationId, audioBuffer);
+      const baseAudioUrl = saveAudio(escalationId, audioBuffer);
+      audioUrl = `${baseAudioUrl}?v=${now}`;
     } catch (audioErr) {
       console.warn('Audio synthesis failed on manual escalation:', audioErr);
     }
 
     const esc: Escalation = {
       id: escalationId,
-      channelId: channelId || 'channel_alex_priya',
+      channelId: resolvedChannelId,
       listingId: listing ? listing.id : listingId || 'listing_1',
       listingTitle: propertyTitle,
       buyerId: 'buyer_alex',
@@ -254,7 +256,7 @@ app.post('/api/copilot/escalate', (req, res) => {
       riskOfLoss: 92,
       briefingTranscript: transcript,
       audioUrl,
-      timestamp: Date.now(),
+      timestamp: now,
       status: 'active',
       lastMessageText: buyerMessage || 'ok nvm I will look elsewhere',
     };

@@ -257,26 +257,68 @@ export default function App() {
     }
   };
 
-  const handleUserSelect = (user: User) => {
+  const handleUserSelect = async (user: User) => {
     setActiveUser(user);
+
+    // Issue fresh Nexconn session token for the selected persona
+    issueNexconnToken(user.id)
+      .then((tokenRes) => {
+        setNexconnStatus({
+          connected: tokenRes.isOk,
+          token: tokenRes.token,
+          mode: tokenRes.isMock ? 'sandbox' : 'live',
+        });
+      })
+      .catch(() => {
+        // Non-blocking
+      });
+
     if (user.role === 'agent') {
       navigateTo('agent');
+      try {
+        const latestEscalations = await fetchEscalations();
+        setEscalations(latestEscalations);
+      } catch (err) {
+        console.error('Failed to refresh escalations:', err);
+      }
+      return;
+    }
+
+    if (user.role === 'seller') {
+      const sellerListings = listings.filter((l) => l.sellerId === user.id);
+      if (sellerListings.length > 0) {
+        const keepCurrent =
+          selectedListing && sellerListings.some((l) => l.id === selectedListing.id);
+        const targetListing = keepCurrent ? selectedListing! : sellerListings[0];
+        await handleOpenChat(targetListing);
+      }
+      return;
+    }
+
+    // Buyer role selected
+    if (currentView === 'agent') {
+      const targetListing = selectedListing || listings[0];
+      if (targetListing) {
+        await handleOpenChat(targetListing);
+      } else {
+        navigateTo('listings');
+      }
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-neutral-950 text-neutral-400">
+      <div className="flex h-screen w-full items-center justify-center bg-[#0B0806] text-white/60">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
-          <span className="text-xs font-medium">Initializing DealGuard Copilot...</span>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#D7EF5A] border-t-transparent" />
+          <span className="text-[13px]">Initializing DealGuard Copilot...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#0B0806] text-[#FCFCFB] flex flex-col">
       <Navbar
         currentView={currentView}
         onNavigate={(view) => {
@@ -307,6 +349,14 @@ export default function App() {
             activeUser={activeUser}
             onOpenChat={handleOpenChat}
             onOpenDemoGuide={() => setIsDemoModalOpen(true)}
+            onTryLiveDemo={() => {
+              const target = selectedListing || listings[0];
+              if (target) {
+                handleOpenChat(target);
+              } else {
+                navigateTo('chat');
+              }
+            }}
           />
         )}
 
@@ -338,16 +388,21 @@ export default function App() {
         )}
 
         {currentView === 'not-found' && (
-          <div className="mx-auto flex max-w-xl flex-col items-center justify-center px-6 py-24 text-center">
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-8 w-full">
-              <div className="text-xs font-mono font-semibold text-rose-400 mb-2">404 · Route Not Found</div>
-              <h1 className="text-2xl font-bold text-white mb-2">Page not found</h1>
-              <p className="text-sm text-neutral-400 mb-6">
-                The route <span className="font-mono text-neutral-300">{window.location.pathname}</span> does not exist in DealGuard.
+          <div className="mx-auto flex max-w-xl flex-col items-center justify-center px-6 py-28 text-center">
+            <div className="rounded-3xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-xl p-10 w-full">
+              <div className="inline-flex items-center rounded-full border border-white/[0.14] bg-white/[0.05] px-3.5 py-1 text-[11px] font-mono text-white/60 mb-4">
+                404 · Route Not Found
+              </div>
+              <h1 className="text-[32px] font-normal tracking-[-0.03em] text-[#FCFCFB] mb-3">
+                Page not found
+              </h1>
+              <p className="text-[14px] text-white/60 mb-7">
+                The route <span className="font-mono text-[#FCFCFB]">{window.location.pathname}</span> does not exist in DealGuard.
               </p>
               <button
+                type="button"
                 onClick={() => navigateTo('listings')}
-                className="rounded-lg bg-white px-5 py-2.5 text-xs font-semibold text-neutral-900 hover:bg-neutral-200 transition-colors"
+                className="rounded-full bg-[#D7EF5A] hover:bg-[#C4E03E] px-6 py-2.5 text-[13px] font-medium text-[#0B0806] transition-colors cursor-pointer"
               >
                 Back to Listings
               </button>
@@ -362,6 +417,14 @@ export default function App() {
         onTriggerBeat1={handleTriggerBeat1}
         onTriggerBeat2={handleTriggerBeat2}
         onReset={handleResetDemo}
+        onOpenLiveChat={() => {
+          const target = selectedListing || listings[0];
+          if (target) {
+            handleOpenChat(target);
+          } else {
+            navigateTo('chat');
+          }
+        }}
       />
     </div>
   );

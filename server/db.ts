@@ -31,14 +31,41 @@ class Database {
         // Ensure per-listing channels have their seeded conversation if absent
         const defaults = this.buildDefaultMessages();
         const existingChannels = new Set(this.state.messages.map((m) => m.channelId));
-        let added = false;
+        let mutated = false;
         for (const msg of defaults) {
           if (!existingChannels.has(msg.channelId)) {
             this.state.messages.push(msg);
-            added = true;
+            mutated = true;
           }
         }
-        if (added) {
+        // Migrate any legacy USD ($) prices/HOA fees to INR (₹)
+        const inrPriceMap: Record<string, { price: number; formattedPrice: string }> = {
+          listing_1: { price: 107500000, formattedPrice: '₹10.75 Cr' },
+          listing_2: { price: 205000000, formattedPrice: '₹20.50 Cr' },
+          listing_3: { price: 158500000, formattedPrice: '₹15.85 Cr' },
+          listing_4: { price: 82500000, formattedPrice: '₹8.25 Cr' },
+        };
+        for (const listing of this.state.listings) {
+          const target = inrPriceMap[listing.id];
+          if (target && listing.formattedPrice.includes('$')) {
+            listing.price = target.price;
+            listing.formattedPrice = target.formattedPrice;
+            mutated = true;
+          }
+          if (listing.highlights?.some((h) => h.includes('$420/mo'))) {
+            listing.highlights = listing.highlights.map((h) =>
+              h.replace('$420/mo', '₹35,000/mo')
+            );
+            mutated = true;
+          }
+        }
+        for (const msg of this.state.messages) {
+          if (msg.content.includes('$420/mo')) {
+            msg.content = msg.content.replace(/\$420\/mo/g, '₹35,000/mo');
+            mutated = true;
+          }
+        }
+        if (mutated) {
           this.save();
         }
       } else {
@@ -92,7 +119,7 @@ class Database {
         senderId: 'buyer_alex',
         senderName: 'Alex Chen',
         senderRole: 'buyer',
-        content: '2:00 PM works well for me. Does the Low HOA ($420/mo) allow pets and is the Deeded Parking space covered?',
+        content: '2:00 PM works well for me. Does the Low HOA (₹35,000/mo) allow pets and is the Deeded Parking space covered?',
         timestamp: now - 3600000 * 1,
         classification: {
           trust_flag: false,
@@ -324,8 +351,8 @@ class Database {
         {
           id: 'listing_1',
           title: 'The Horizon Marina Residence',
-          price: 1280000,
-          formattedPrice: '$1,280,000',
+          price: 107500000,
+          formattedPrice: '₹10.75 Cr',
           locality: 'Marina Waterfront',
           address: '420 Marina Boulevard, Unit 4B',
           bedrooms: 2,
@@ -333,7 +360,7 @@ class Database {
           sqft: 1420,
           propertyType: 'Condominium',
           description: 'Sun-drenched Scandinavian-inspired waterfront residence with panoramic bay views, private balcony, chevron oak floors, and deeded garage parking.',
-          highlights: ['Panoramic Bay Views', 'Deeded Parking', 'Floor-to-Ceiling Windows', 'Low HOA ($420/mo)'],
+          highlights: ['Panoramic Bay Views', 'Deeded Parking', 'Floor-to-Ceiling Windows', 'Low HOA (₹35,000/mo)'],
           image: '/src/assets/images/property_luxury_apartment_1794032403222.jpg',
           sellerId: 'seller_priya',
           sellerName: 'Priya Patel',
@@ -343,8 +370,8 @@ class Database {
         {
           id: 'listing_2',
           title: 'Glasshouse Penthouse Suite',
-          price: 2450000,
-          formattedPrice: '$2,450,000',
+          price: 205000000,
+          formattedPrice: '₹20.50 Cr',
           locality: 'Downtown Financial District',
           address: '880 Market St, Penthouse 38',
           bedrooms: 3,
@@ -362,8 +389,8 @@ class Database {
         {
           id: 'listing_3',
           title: 'Cedarwood Modern Villa',
-          price: 1890000,
-          formattedPrice: '$1,890,000',
+          price: 158500000,
+          formattedPrice: '₹15.85 Cr',
           locality: 'Silverwood Hills',
           address: '1540 Crestview Lane',
           bedrooms: 4,
@@ -381,8 +408,8 @@ class Database {
         {
           id: 'listing_4',
           title: 'Heritage Warehouse Loft',
-          price: 980000,
-          formattedPrice: '$980,000',
+          price: 82500000,
+          formattedPrice: '₹8.25 Cr',
           locality: 'Arts & Brewery District',
           address: '710 Industrial Way, Loft 204',
           bedrooms: 1,
@@ -444,8 +471,12 @@ class Database {
     return [...this.state.escalations].sort((a, b) => b.timestamp - a.timestamp);
   }
 
+  public getActiveEscalationForChannel(channelId: string): Escalation | undefined {
+    return this.state.escalations.find((e) => e.channelId === channelId && e.status === 'active');
+  }
+
   public addEscalation(esc: Escalation): Escalation {
-    // Avoid duplicate escalations for same channel in short period
+    // Enforce single active escalation per channel: update existing active escalation in-place
     const existingIdx = this.state.escalations.findIndex((e) => e.channelId === esc.channelId && e.status === 'active');
     if (existingIdx >= 0) {
       this.state.escalations[existingIdx] = esc;
@@ -454,6 +485,52 @@ class Database {
     }
     this.save();
     return esc;
+  }
+
+  public upsertSystemNotice(channelId: string, escalationId: string, content: string): Message {
+    const existing = [...this.state.messages]
+      .reverse()
+      .find((m) => m.channelId === channelId && m.isSystemNotice && m.escalationId === escalationId);
+
+    if (existing) {
+      existing.content = content;
+      existing.timestamp = Date.now() + 50;
+      this.save();
+      return existing;
+    }
+
+    const systemMsg: Message = {
+      id: `sys_${Date.now()}`,
+      channelId,
+      senderId: 'system_copilot',
+      senderName: 'DealGuard Guardian',
+      senderRole: 'system',
+      content,
+      timestamp: Date.now() + 50,
+      isSystemNotice: true,
+      escalationId,
+    };
+    this.state.messages.push(systemMsg);
+    this.save();
+    return systemMsg;
+  }
+
+  public upsertAgentVoiceMessage(escalationId: string, msg: Message): Message {
+    const existingIdx = this.state.messages.findIndex(
+      (m) => m.channelId === 'channel_agent_group' && m.escalationId === escalationId
+    );
+    if (existingIdx >= 0) {
+      this.state.messages[existingIdx] = {
+        ...this.state.messages[existingIdx],
+        ...msg,
+        id: this.state.messages[existingIdx].id,
+      };
+      this.save();
+      return this.state.messages[existingIdx];
+    }
+    this.state.messages.push(msg);
+    this.save();
+    return msg;
   }
 
   public claimEscalation(id: string, claimedBy: string): Escalation | undefined {

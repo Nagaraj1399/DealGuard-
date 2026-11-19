@@ -16,7 +16,7 @@
     "scan:pii": "tsx scripts/scan-pii.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
+    "@google/genai": "^3.6.1",
     "@nexconn/chat": "^26.2.1",
     "@nexconn/chatui": "^26.2.5",
     "@nexconn/engine": "^26.2.1",

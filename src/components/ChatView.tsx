@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldAlert,
-  Send,
-  Sparkles,
+  ShieldCheck,
   Radio,
   TrendingDown,
   Volume2,
   CheckCheck,
   Loader2,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  ArrowUpRight,
+  ArrowUp,
 } from 'lucide-react';
 import { Listing, Message, User } from '../types.js';
 import { sendMessage } from '../api.js';
 import { getChannelIdForListing } from '../utils/channels.js';
+import { getAvatarForUser } from '../utils/avatars.js';
 
 interface ChatViewProps {
   listing: Listing;
@@ -35,11 +40,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [isSellerTyping, setIsSellerTyping] = useState(false);
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null);
+  const [isMobileRadarOpen, setIsMobileRadarOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sellerTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const channelId = getChannelIdForListing(listing.id);
+  const sellerAvatar = getAvatarForUser(listing.sellerId, listing.sellerName);
+  const activeUserAvatar = getAvatarForUser(activeUser.id, activeUser.name);
 
   useEffect(() => {
     setIsSellerTyping(false);
@@ -80,6 +88,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     lead_score: 68,
     risk_of_loss: 18,
   };
+
+  const isRiskDanger = latestClassification.risk_of_loss >= 80;
 
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend ?? inputText).trim();
@@ -146,346 +156,607 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const demoBeat1Text = 'Please transfer the booking amount to this UPI ID before I show you the flat';
   const demoBeat2Text = "ok nvm I'll look elsewhere";
 
-  return (
-    <div className="mx-auto flex h-[calc(100dvh-10.5rem)] md:h-[calc(100dvh-4rem)] max-w-7xl flex-col px-2 sm:px-6 lg:px-8 py-2 sm:py-4">
-      {/* Top Channel Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-900/90 px-4 sm:px-6 py-3 rounded-t-xl">
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="relative shrink-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-800 text-neutral-300 font-semibold">
-              {listing.sellerName.substring(0, 2).toUpperCase()}
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-neutral-900" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-white text-sm truncate">{listing.sellerName}</span>
-              <span className="text-xs text-neutral-400">· Listing Agent</span>
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                <CheckCheck className="h-3 w-3" />
-                <span>Read Receipts On</span>
-              </span>
-            </div>
-            <div className="text-xs text-neutral-400 truncate">
-              Inquiry on <span className="text-neutral-200 font-medium">{listing.title}</span> ({listing.formattedPrice})
-            </div>
-          </div>
-        </div>
-
-        {/* Nexconn & Copilot Status Bar */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <div
-            className="flex items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-1 text-xs text-neutral-400"
-            title={`DirectChannel: ${channelId} · Token: ${nexconnStatus.token.slice(0, 10)}…`}
-          >
-            <Radio className="h-3 w-3 text-emerald-400 animate-pulse shrink-0" />
-            <span className="font-mono text-[11px] text-neutral-300 truncate">
-              Nexconn DirectChannel ({nexconnStatus.mode === 'live' ? 'Live' : 'Sandbox'})
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-md border border-rose-950/60 bg-rose-950/20 px-2.5 py-1 text-xs text-rose-300">
-            <Sparkles className="h-3 w-3 text-rose-400 shrink-0" />
-            <span className="whitespace-nowrap">Guardian Copilot Active</span>
-          </div>
-        </div>
+  const renderAvatar = (userId: string, name: string, sizeClass = 'h-7 w-7') => {
+    const src = getAvatarForUser(userId, name);
+    if (src) {
+      return (
+        <img
+          src={src}
+          alt={name}
+          referrerPolicy="no-referrer"
+          className={`${sizeClass} rounded-full object-cover ring-1 ring-white/[0.15] shrink-0`}
+        />
+      );
+    }
+    return (
+      <div
+        className={`${sizeClass} flex items-center justify-center rounded-full border border-white/[0.15] bg-white/[0.06] text-[11px] text-[#FCFCFB] shrink-0`}
+      >
+        {name.substring(0, 2).toUpperCase()}
       </div>
+    );
+  };
 
-      {/* Main Chat Layout Split: Messages on Left, Hot-Lead Radar on Right */}
-      <div className="flex flex-1 overflow-hidden border-x border-neutral-800 bg-neutral-950/80">
-        {/* Left: Message Thread */}
-        <div className="flex flex-1 flex-col justify-between overflow-hidden">
-          {/* Scrollable messages area */}
-          <div
-            ref={scrollContainerRef}
-            className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
-          >
-            {/* Top context card */}
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900/40 p-3.5 text-xs text-neutral-400">
-              <div className="flex items-center justify-between font-medium text-neutral-200 mb-1 gap-2">
-                <span className="truncate">{listing.title} · {listing.locality}</span>
-                <span className="font-mono tabular-nums text-white shrink-0">{listing.formattedPrice}</span>
-              </div>
-              <p className="line-clamp-1 text-neutral-400">{listing.description}</p>
+  return (
+    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] md:h-[calc(100dvh-5rem)] max-w-[1360px] flex-col px-3 sm:px-8 lg:px-12 py-3 sm:py-5">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-xl">
+        {/* Top Channel Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.10] bg-white/[0.03] px-4 sm:px-6 py-3.5">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="relative shrink-0">
+              {sellerAvatar ? (
+                <img
+                  src={sellerAvatar}
+                  alt={listing.sellerName}
+                  referrerPolicy="no-referrer"
+                  className="h-10 w-10 rounded-full object-cover ring-1 ring-white/[0.18]"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.15] bg-white/[0.06] text-[#FCFCFB] text-[13px] font-medium">
+                  {listing.sellerName.substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-[#D7EF5A] ring-2 ring-[#0B0806]" />
             </div>
-
-            {/* Messages Loop */}
-            {messages.map((msg, idx) => {
-              const isSender = msg.senderId === activeUser.id;
-              const isSystem = msg.isSystemNotice || msg.senderRole === 'system';
-              const isLastMessage = idx === messages.length - 1;
-
-              if (isSystem) {
-                return (
-                  <div key={msg.id} className="flex justify-center my-3">
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-2 text-xs text-amber-200">
-                      <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                      <span>{msg.content}</span>
-                      <button
-                        onClick={onNavigateToAgent}
-                        className="ml-1 font-semibold underline hover:text-amber-100 whitespace-nowrap"
-                      >
-                        View in Agent Radar →
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-
-              const hasTrustFlag = msg.trustFlag || msg.classification?.trust_flag;
-              const trustReason = msg.trustReason || msg.classification?.trust_reason;
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${isSender ? 'items-end' : 'items-start'}`}
-                >
-                  <div className="flex items-baseline gap-2 mb-1 px-1">
-                    <span className="text-xs font-semibold text-neutral-300">
-                      {msg.senderName}
-                    </span>
-                    <span className="text-[11px] text-neutral-500 font-mono">
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-
-                  <div className="relative max-w-lg sm:max-w-xl">
-                    {/* The message bubble */}
-                    <div
-                      className={`relative rounded-2xl px-4 py-3 text-sm leading-relaxed transition-all ${
-                        isSender
-                          ? 'bg-neutral-800 text-neutral-100 rounded-tr-xs'
-                          : 'bg-neutral-900 border border-neutral-800 text-neutral-100 rounded-tl-xs'
-                      } ${hasTrustFlag ? 'border-rose-600/80 ring-1 ring-rose-500/30' : ''}`}
-                    >
-                      {msg.content}
-
-                      {/* Live Trust Shield Warning Badge */}
-                      {hasTrustFlag && (
-                        <div className="mt-2.5 pt-2 border-t border-rose-900/60">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveTooltipId(activeTooltipId === msg.id ? null : msg.id)
-                            }
-                            className="flex items-center gap-1.5 rounded-full bg-rose-500/20 px-2.5 py-1 text-xs font-semibold text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition-colors"
-                          >
-                            <ShieldAlert className="h-3.5 w-3.5 text-rose-400 shrink-0 animate-pulse" />
-                            <span>Trust Shield Warning</span>
-                          </button>
-
-                          {/* Expanded warning explanation */}
-                          <div className="mt-2 rounded-md bg-rose-950/40 border border-rose-800/40 p-2 text-xs text-rose-200 leading-normal">
-                            <div className="font-semibold text-rose-300 mb-0.5">Potential P2P Scam Flagged:</div>
-                            <div>{trustReason || 'Advance payment request detected prior to viewing.'}</div>
-                            <div className="mt-1 text-[11px] text-rose-400/90 font-medium">
-                              Recommendation: Never wire funds or transfer UPI deposits before verified in-person tour.
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Nexconn Delivery & Read Receipt */}
-                    {isSender && (
-                      <div className="mt-1 flex items-center justify-end gap-1 px-1 text-[10px] text-neutral-500">
-                        <CheckCheck className="h-3 w-3 text-emerald-400" />
-                        <span>{isLastMessage ? 'Delivered · Read' : 'Read'}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Optimistic Pending Bubble + Guardian Copilot Analyzing Indicator */}
-            {pendingText && (
-              <div className="flex flex-col items-end">
-                <div className="flex items-baseline gap-2 mb-1 px-1">
-                  <span className="text-xs font-semibold text-neutral-300">{activeUser.name}</span>
-                  <span className="text-[11px] text-neutral-500 font-mono">Sending…</span>
-                </div>
-                <div className="max-w-lg sm:max-w-xl rounded-2xl rounded-tr-xs bg-neutral-800/80 px-4 py-3 text-sm text-neutral-200 border border-neutral-700/60">
-                  {pendingText}
-                  <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-300">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>Guardian Copilot analyzing…</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Seller Typing Indicator */}
-            {isSellerTyping && (
-              <div className="flex flex-col items-start">
-                <div className="flex items-baseline gap-2 mb-1 px-1">
-                  <span className="text-xs font-semibold text-neutral-300">{listing.sellerName}</span>
-                  <span className="text-[11px] text-emerald-400 font-mono">typing…</span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-xs border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs text-neutral-400">
-                  <span className="inline-flex gap-1 mr-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:120ms]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:240ms]" />
-                  </span>
-                  <span>{listing.sellerName} is composing a reply…</span>
-                </div>
-              </div>
-            )}
-
-            {/* Live Typing / Presence Bar */}
-            {inputText.trim().length > 0 && !isSending && (
-              <div className="flex items-center gap-2 px-1 text-[11px] text-neutral-500">
-                <span className="inline-flex gap-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:120ms]" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:240ms]" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[15px] font-medium text-[#FCFCFB] truncate">
+                  {listing.sellerName}
                 </span>
-                <span>{activeUser.name} is typing in Nexconn {channelId}…</span>
+                <span className="text-[12px] text-white/60">· Listing Agent</span>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-[#D7EF5A]">
+                  <CheckCheck strokeWidth={1.5} className="h-3.5 w-3.5" />
+                  <span>Read Receipts On</span>
+                </span>
               </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Quick Demo Replay Trigger Bar */}
-          <div className="border-t border-neutral-800/80 bg-neutral-900/70 px-4 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-medium text-neutral-400">
-                1-Click Video Demo Triggers:
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => handleSend(demoBeat1Text)}
-                  disabled={isSending}
-                  className="flex items-center gap-1.5 rounded-md border border-rose-900/80 bg-rose-950/40 px-3 py-1 text-xs font-medium text-rose-300 hover:bg-rose-900/50 transition-colors whitespace-nowrap disabled:opacity-50"
-                  title="Scripted Beat 1: Requests booking amount before flat showing"
-                >
-                  <ShieldAlert className="h-3 w-3 text-rose-400" />
-                  <span>Beat 1: Trigger Trust Shield Scam Flag</span>
-                </button>
-                <button
-                  onClick={() => handleSend(demoBeat2Text)}
-                  disabled={isSending}
-                  className="flex items-center gap-1.5 rounded-md border border-amber-900/80 bg-amber-950/40 px-3 py-1 text-xs font-medium text-amber-300 hover:bg-amber-900/50 transition-colors whitespace-nowrap disabled:opacity-50"
-                  title="Scripted Beat 2: Disengagement walkaway triggers escalation briefing"
-                >
-                  <TrendingDown className="h-3 w-3 text-amber-400" />
-                  <span>Beat 2: Trigger Hot-Lead Walkaway Radar</span>
-                </button>
+              <div className="text-[12px] text-white/60 truncate">
+                Inquiry on <span className="text-[#FCFCFB]">{listing.title}</span> ({listing.formattedPrice})
               </div>
             </div>
           </div>
 
-          {/* Chat Input Box */}
-          <div className="border-t border-neutral-800 bg-neutral-900/90 p-3 sm:p-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <input
-                type="text"
-                placeholder={`Type a message as ${activeUser.name}...`}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isSending}
-                className="flex-1 min-w-0 rounded-lg border border-neutral-800 bg-neutral-950 px-3.5 sm:px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:border-neutral-600 focus:outline-hidden"
-              />
-              <button
-                onClick={() => handleSend()}
-                disabled={!inputText.trim() || isSending}
-                className="flex h-10 items-center justify-center rounded-lg bg-white px-3.5 sm:px-4 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
-              >
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                <span className="ml-1.5 hidden sm:inline">Send</span>
-              </button>
+          {/* Header Channel Glass Pills + Guardian Copilot Active with Pulsing Lime Dot */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div
+              className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.05] backdrop-blur-md px-3.5 py-1.5 text-[11px] text-white/80"
+              title={`DirectChannel: ${channelId} · Token: ${nexconnStatus.token.slice(0, 10)}…`}
+            >
+              <Radio strokeWidth={1.5} className="h-3 w-3 text-white/75 shrink-0" />
+              <span className="font-mono text-[11px] truncate">
+                Nexconn DirectChannel ({nexconnStatus.mode === 'live' ? 'Live' : 'Sandbox'})
+              </span>
+            </div>
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.05] backdrop-blur-md px-3.5 py-1.5 text-[12px] text-[#FCFCFB]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-pulse shrink-0" />
+              <span className="whitespace-nowrap">Guardian Copilot Active</span>
             </div>
           </div>
         </div>
 
-        {/* Right Sidebar: Real-Time Guardian Copilot Radar */}
-        <div className="hidden lg:flex w-80 flex-col border-l border-neutral-800 bg-neutral-900/40 p-5 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-neutral-800">
-            <Sparkles className="h-4 w-4 text-rose-400" />
-            <h3 className="text-sm font-bold text-white">Guardian Copilot Radar</h3>
-          </div>
+        {/* Mobile & Tablet Guardian Copilot Radar Bar (Always visible at 390px, expandable to full cards) */}
+        <div
+          data-testid="mobile-copilot-radar"
+          className="lg:hidden border-b border-white/[0.10] bg-white/[0.03] px-4 py-2.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0 flex-wrap">
+              <div className="flex items-center gap-1.5 text-[12px] text-[#FCFCFB] shrink-0">
+                <ShieldCheck strokeWidth={1.5} className="h-3.5 w-3.5 text-[#D7EF5A]" />
+                <span>Copilot Radar</span>
+              </div>
 
-          {/* Live Intent Score Cards */}
-          <div className="space-y-4">
-            {/* Lead Readiness Score */}
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-neutral-400">Lead Readiness</span>
-                <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums">
+              <div className="flex items-center gap-1.5 text-[12px]">
+                <span className="text-white/60">Lead:</span>
+                <span className="text-[#D7EF5A] tabular-nums">
                   {latestClassification.lead_score}%
                 </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-500"
-                  style={{ width: `${latestClassification.lead_score}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[11px] text-neutral-400">
-                Buyer commitment and booking intent evaluated on each turn.
-              </p>
-            </div>
 
-            {/* Risk of Loss / Walkaway Radar */}
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-neutral-400">Walkaway Risk</span>
+              <div className="flex items-center gap-1.5 text-[12px]">
+                <span className="text-white/60">Risk:</span>
                 <span
-                  className={`text-xs font-mono font-bold tabular-nums ${
-                    latestClassification.risk_of_loss >= 80 ? 'text-rose-400' : 'text-neutral-300'
+                  className={`tabular-nums ${
+                    isRiskDanger ? 'text-[#E5484D]' : 'text-[#FCFCFB]'
                   }`}
                 >
                   {latestClassification.risk_of_loss}%
                 </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ${
-                    latestClassification.risk_of_loss >= 80 ? 'bg-rose-500' : 'bg-amber-500'
-                  }`}
-                  style={{ width: `${latestClassification.risk_of_loss}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[11px] text-neutral-400">
-                Escalates to human broker team when risk exceeds 80%.
-              </p>
+
+              {latestClassification.trust_flag ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#E5484D]/15 border border-[#E5484D]/45 px-2.5 py-0.5 text-[11px] text-[#E5484D] dg-red-glow">
+                  <ShieldAlert strokeWidth={1.5} className="h-3 w-3" />
+                  <span>Trust Alert</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] text-[#D7EF5A]">
+                  <span>Verified</span>
+                </span>
+              )}
             </div>
 
-            {/* Trust Shield Status */}
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldAlert className="h-4 w-4 text-rose-400" />
-                <span className="text-xs font-bold text-white">Trust Shield Status</span>
-              </div>
-              <p className="text-xs text-neutral-300">
-                Scans for advance fees, wire transfer spoofing, and off-platform coercion before money changes hands.
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileRadarOpen((prev) => !prev)}
+              aria-expanded={isMobileRadarOpen}
+              className="inline-flex items-center gap-1 rounded-full border border-white/[0.14] bg-white/[0.05] px-3 py-1 text-[11px] text-white/80 hover:text-[#FCFCFB] shrink-0 cursor-pointer"
+            >
+              <span>{isMobileRadarOpen ? 'Hide' : 'Details'}</span>
+              {isMobileRadarOpen ? (
+                <ChevronUp strokeWidth={1.5} className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown strokeWidth={1.5} className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
 
-            {/* Agent Link CTA */}
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 p-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-white mb-1.5">
-                <Volume2 className="h-4 w-4 text-amber-400" />
-                <span>Agent Escalation Channel</span>
-              </div>
-              <p className="text-xs text-neutral-400 mb-3">
-                When deals heat up or threaten to walk, spoken audio briefings stream to Sarah Jenkins.
-              </p>
-              <button
-                onClick={onNavigateToAgent}
-                className="w-full rounded-lg bg-neutral-800 hover:bg-neutral-700 py-2 text-xs font-semibold text-white transition-colors"
-              >
-                Open Agent View →
-              </button>
+          {/* Dual thin meters: lime for readiness, white turning red >= 80% for risk */}
+          <div className="mt-2 grid grid-cols-2 gap-2.5">
+            <div className="h-1 w-full rounded-full bg-white/[0.12] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#D7EF5A] transition-all duration-500"
+                style={{ width: `${latestClassification.lead_score}%` }}
+              />
+            </div>
+            <div className="h-1 w-full rounded-full bg-white/[0.12] overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isRiskDanger ? 'bg-[#E5484D]' : 'bg-[#FCFCFB]'
+                }`}
+                style={{ width: `${latestClassification.risk_of_loss}%` }}
+              />
             </div>
           </div>
+
+          {/* Collapsible full Guardian Copilot Radar details on mobile */}
+          {isMobileRadarOpen && (
+            <div className="mt-3 pt-3 border-t border-white/[0.10] space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-2xl border border-white/[0.10] bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className="text-white/60">Lead Readiness</span>
+                    <span className="text-[#D7EF5A] tabular-nums">
+                      {latestClassification.lead_score}%
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/55 leading-snug">
+                    Live LLM commitment score evaluated on every message.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.10] bg-white/[0.04] p-3">
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className="text-white/60">Walkaway Risk</span>
+                    <span
+                      className={`tabular-nums ${
+                        isRiskDanger ? 'text-[#E5484D]' : 'text-[#FCFCFB]'
+                      }`}
+                    >
+                      {latestClassification.risk_of_loss}%
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/55 leading-snug">
+                    Auto-escalates to senior broker when risk exceeds 80%.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`flex items-center justify-between gap-2 rounded-2xl border p-3 ${
+                  latestClassification.trust_flag
+                    ? 'border-[#E5484D]/45 bg-[#E5484D]/[0.10] dg-red-glow'
+                    : 'border-white/[0.10] bg-white/[0.04]'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-[12px] text-[#FCFCFB]">
+                    <ShieldAlert
+                      strokeWidth={1.5}
+                      className={`h-3.5 w-3.5 shrink-0 ${
+                        latestClassification.trust_flag ? 'text-[#E5484D]' : 'text-[#D7EF5A]'
+                      }`}
+                    />
+                    <span>Trust Shield Status</span>
+                  </div>
+                  <p className="text-[11px] text-white/55 mt-0.5">
+                    Scans every message in real time for advance fees, wire/crypto scams, and off-platform coercion.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onNavigateToAgent}
+                  className="rounded-full bg-[#D7EF5A] hover:bg-[#C4E03E] px-3.5 py-1.5 text-[11px] font-medium text-[#0B0806] whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  Agent Radar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Main Chat Layout Split: Messages on Left, Hot-Lead Radar on Right */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: Message Thread */}
+          <div className="flex flex-1 flex-col justify-between overflow-hidden">
+            {/* Scrollable messages area */}
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
+            >
+              {/* Top context card */}
+              <div className="rounded-2xl border border-white/[0.10] bg-white/[0.03] px-4 py-3 text-[13px] text-white/60">
+                <div className="flex items-center justify-between text-[#FCFCFB] mb-1 gap-2">
+                  <span className="truncate">{listing.title} · {listing.locality}</span>
+                  <span className="tabular-nums text-[#FCFCFB] shrink-0">{listing.formattedPrice}</span>
+                </div>
+                <p className="line-clamp-1 text-[12px] text-white/55">{listing.description}</p>
+              </div>
+
+              {/* Messages Loop */}
+              {messages.map((msg, idx) => {
+                const isSender = msg.senderId === activeUser.id;
+                const isSystem = msg.isSystemNotice || msg.senderRole === 'system';
+                const isLastMessage = idx === messages.length - 1;
+
+                if (isSystem) {
+                  return (
+                    <div key={msg.id} className="flex justify-center my-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 rounded-3xl border border-[#D7EF5A]/30 bg-white/[0.06] px-5 py-3 text-[12px] text-[#FCFCFB] backdrop-blur-md max-w-2xl">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="h-2 w-2 rounded-full bg-[#D7EF5A] animate-pulse shrink-0" />
+                          <span className="text-[#D7EF5A] uppercase tracking-[0.08em] text-[10px] font-medium whitespace-nowrap">
+                            AI → Human Hand-Off
+                          </span>
+                        </div>
+                        <span className="text-white/80">{msg.content}</span>
+                        <button
+                          type="button"
+                          onClick={onNavigateToAgent}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#D7EF5A] hover:bg-[#C4E03E] px-3 py-1 text-[11px] font-medium text-[#0B0806] whitespace-nowrap self-start sm:self-auto transition-colors cursor-pointer"
+                        >
+                          <span>Open Agent Radar</span>
+                          <ArrowUpRight strokeWidth={1.5} className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                const hasTrustFlag = msg.trustFlag || msg.classification?.trust_flag;
+                const trustReason = msg.trustReason || msg.classification?.trust_reason;
+                const isAgentMessage = msg.senderRole === 'agent';
+                const isBuyerBubble = msg.senderRole === 'buyer';
+
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-end gap-2.5 ${isSender ? 'flex-row-reverse' : 'flex-row'}`}
+                  >
+                    {/* Persona Avatar */}
+                    <div className="mb-1 shrink-0">
+                      {renderAvatar(msg.senderId, msg.senderName, 'h-7 w-7')}
+                    </div>
+
+                    <div className={`flex flex-col ${isSender ? 'items-end' : 'items-start'} max-w-lg sm:max-w-xl`}>
+                      <div className="flex items-center gap-2 mb-1 px-1">
+                        <span className="text-[12px] text-white/75">
+                          {msg.senderName}
+                        </span>
+                        {isAgentMessage && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[#D7EF5A]/40 bg-[#D7EF5A]/15 px-2.5 py-0.5 text-[10px] text-[#D7EF5A]">
+                            <UserCheck strokeWidth={1.5} className="h-3 w-3" />
+                            <span>Senior Broker Joined</span>
+                          </span>
+                        )}
+                        <span className="text-[11px] text-white/40 tabular-nums">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      {/* Message Bubble: Buyer = white 8% glass, Seller = white 4% with hairline border, both rounded-2xl */}
+                      <div
+                        className={`relative rounded-2xl px-4 py-3 text-[14px] leading-relaxed backdrop-blur-md transition-all ${
+                          isAgentMessage
+                            ? 'bg-[#D7EF5A]/[0.08] border border-[#D7EF5A]/30 text-[#FCFCFB]'
+                            : isBuyerBubble
+                            ? 'bg-white/[0.08] border border-white/[0.10] text-[#FCFCFB]'
+                            : 'bg-white/[0.04] border border-white/[0.12] text-[#FCFCFB]'
+                        } ${hasTrustFlag ? 'border-[#E5484D]/65 dg-red-glow' : ''}`}
+                      >
+                        {msg.content}
+
+                        {/* Live Trust Shield Flag State (#E5484D + soft red glow) */}
+                        {hasTrustFlag && (
+                          <div className="mt-3 pt-2.5 border-t border-[#E5484D]/35">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveTooltipId(activeTooltipId === msg.id ? null : msg.id)
+                              }
+                              className="inline-flex items-center gap-1.5 rounded-full bg-[#E5484D]/20 px-3 py-1 text-[12px] font-medium text-[#E5484D] border border-[#E5484D]/45 hover:bg-[#E5484D]/30 transition-colors cursor-pointer"
+                            >
+                              <ShieldAlert strokeWidth={1.5} className="h-3.5 w-3.5 shrink-0" />
+                              <span>Trust Shield Warning</span>
+                            </button>
+
+                            <div className="mt-2 rounded-2xl bg-[#E5484D]/[0.12] border border-[#E5484D]/35 p-3 text-[12px] text-[#FCFCFB] leading-relaxed">
+                              <div className="text-[#E5484D] font-medium mb-0.5">
+                                Potential P2P Scam Flagged
+                              </div>
+                              <div className="text-white/90">
+                                {trustReason || 'Advance payment request detected prior to viewing.'}
+                              </div>
+                              <div className="mt-1.5 text-[11px] text-white/60">
+                                Recommendation: Never wire funds or transfer UPI deposits before a verified in-person tour.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Nexconn Delivery & Read Receipt */}
+                      {isSender && (
+                        <div className="mt-1 flex items-center justify-end gap-1 px-1.5 text-[11px] text-white/45">
+                          <CheckCheck strokeWidth={1.5} className="h-3 w-3 text-[#D7EF5A]" />
+                          <span>{isLastMessage ? 'Delivered · Read' : 'Read'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Optimistic Pending Bubble + Guardian Copilot Analyzing Indicator */}
+              {pendingText && (
+                <div className="flex items-end gap-2.5 flex-row-reverse">
+                  <div className="mb-1 shrink-0">
+                    {activeUserAvatar ? (
+                      <img
+                        src={activeUserAvatar}
+                        alt={activeUser.name}
+                        referrerPolicy="no-referrer"
+                        className="h-7 w-7 rounded-full object-cover ring-1 ring-white/[0.15]"
+                      />
+                    ) : (
+                      renderAvatar(activeUser.id, activeUser.name, 'h-7 w-7')
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end max-w-lg sm:max-w-xl">
+                    <div className="flex items-baseline gap-2 mb-1 px-1">
+                      <span className="text-[12px] text-white/75">{activeUser.name}</span>
+                      <span className="text-[11px] text-white/45">Sending…</span>
+                    </div>
+                    <div className="rounded-2xl bg-white/[0.08] px-4 py-3 text-[14px] text-[#FCFCFB] border border-white/[0.14] backdrop-blur-md">
+                      {pendingText}
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[#D7EF5A]">
+                        <Loader2 strokeWidth={1.5} className="h-3 w-3 animate-spin" />
+                        <span>Guardian Copilot analyzing…</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Seller Typing Indicator */}
+              {isSellerTyping && (
+                <div className="flex items-end gap-2.5">
+                  <div className="mb-1 shrink-0">
+                    {renderAvatar(listing.sellerId, listing.sellerName, 'h-7 w-7')}
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <div className="flex items-baseline gap-2 mb-1 px-1">
+                      <span className="text-[12px] text-white/75">{listing.sellerName}</span>
+                      <span className="text-[11px] text-[#D7EF5A]">typing…</span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-white/[0.12] bg-white/[0.04] px-4 py-3 text-[12px] text-white/60 backdrop-blur-md">
+                      <span className="inline-flex gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce [animation-delay:120ms]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce [animation-delay:240ms]" />
+                      </span>
+                      <span>{listing.sellerName} is composing a reply…</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Typing / Presence Bar */}
+              {inputText.trim().length > 0 && !isSending && (
+                <div className="flex items-center gap-2 px-1 text-[11px] text-white/50">
+                  <span className="inline-flex gap-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce [animation-delay:120ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-bounce [animation-delay:240ms]" />
+                  </span>
+                  <span>
+                    {activeUser.name} is typing in Nexconn <span className="font-mono">{channelId}</span>…
+                  </span>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Outlined Pill Demo Beat Triggers */}
+            <div className="border-t border-white/[0.10] bg-white/[0.02] px-4 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[12px] text-white/60">
+                  Type your own live test below, or run quick beats:
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSend(demoBeat1Text)}
+                    disabled={isSending}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#E5484D]/45 bg-transparent hover:bg-[#E5484D]/[0.12] px-3.5 py-1.5 text-[12px] text-[#E5484D] transition-colors whitespace-nowrap disabled:opacity-50 cursor-pointer"
+                    title="Scripted Beat 1: Requests booking amount before flat showing"
+                  >
+                    <ShieldAlert strokeWidth={1.5} className="h-3.5 w-3.5" />
+                    <span>Beat 1: Trigger Trust Shield Scam Flag</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSend(demoBeat2Text)}
+                    disabled={isSending}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.16] bg-transparent hover:bg-white/[0.08] px-3.5 py-1.5 text-[12px] text-[#FCFCFB] transition-colors whitespace-nowrap disabled:opacity-50 cursor-pointer"
+                    title="Scripted Beat 2: Disengagement walkaway triggers escalation briefing"
+                  >
+                    <TrendingDown strokeWidth={1.5} className="h-3.5 w-3.5 text-[#D7EF5A]" />
+                    <span>Beat 2: Trigger Hot-Lead Walkaway Radar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Chat Input Box + Lime Circle Arrow Send Button */}
+            <div className="border-t border-white/[0.10] bg-[#0B0806]/60 p-3 sm:p-4">
+              <div className="flex items-center gap-2.5">
+                <input
+                  type="text"
+                  placeholder={`Type a message as ${activeUser.name}...`}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isSending}
+                  className="flex-1 min-w-0 rounded-full border border-white/[0.14] bg-white/[0.04] px-4 py-2.5 text-[14px] text-[#FCFCFB] placeholder-white/40 focus:border-white/30 focus:outline-hidden transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={!inputText.trim() || isSending}
+                  aria-label="Send message"
+                  title="Send message"
+                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-[#D7EF5A] hover:bg-[#C4E03E] text-[#0B0806] transition-transform duration-150 hover:scale-[1.05] disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+                >
+                  {isSending ? (
+                    <Loader2 strokeWidth={1.5} className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowUp
+                      strokeWidth={1.75}
+                      className="h-4 w-4 transition-transform duration-150 group-hover:-translate-y-0.5"
+                    />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar: Glass Rounded-3xl Guardian Copilot Radar Panels */}
+          <aside className="hidden lg:flex w-80 flex-col border-l border-white/[0.10] bg-white/[0.02] p-5 overflow-y-auto">
+            <div className="flex items-center justify-between gap-2 mb-5 pb-3.5 border-b border-white/[0.10]">
+              <div className="flex items-center gap-2">
+                <ShieldCheck strokeWidth={1.5} className="h-4 w-4 text-[#D7EF5A]" />
+                <h3 className="text-[16px] font-normal text-[#FCFCFB]">Guardian Copilot Radar</h3>
+              </div>
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D7EF5A] animate-pulse" />
+            </div>
+
+            <div className="space-y-4">
+              {/* Lead Readiness Meter (thin lime bar) */}
+              <div className="rounded-3xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] text-white/60">Lead Readiness</span>
+                  <span className="text-[14px] text-[#D7EF5A] tabular-nums">
+                    {latestClassification.lead_score}%
+                  </span>
+                </div>
+                <div className="h-1 w-full rounded-full bg-white/[0.12] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#D7EF5A] transition-all duration-500"
+                    style={{ width: `${latestClassification.lead_score}%` }}
+                  />
+                </div>
+                <p className="mt-2.5 text-[12px] text-white/55 leading-relaxed">
+                  Buyer commitment and booking intent evaluated on each turn.
+                </p>
+              </div>
+
+              {/* Walkaway Risk Meter (thin white bar, turning red #E5484D above 80%) */}
+              <div
+                className={`rounded-3xl border backdrop-blur-xl p-4 transition-all ${
+                  isRiskDanger
+                    ? 'border-[#E5484D]/45 bg-[#E5484D]/[0.08] dg-red-glow'
+                    : 'border-white/[0.12] bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] text-white/60">Walkaway Risk</span>
+                  <span
+                    className={`text-[14px] tabular-nums ${
+                      isRiskDanger ? 'text-[#E5484D]' : 'text-[#FCFCFB]'
+                    }`}
+                  >
+                    {latestClassification.risk_of_loss}%
+                  </span>
+                </div>
+                <div className="h-1 w-full rounded-full bg-white/[0.12] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isRiskDanger ? 'bg-[#E5484D]' : 'bg-[#FCFCFB]'
+                    }`}
+                    style={{ width: `${latestClassification.risk_of_loss}%` }}
+                  />
+                </div>
+                <p className="mt-2.5 text-[12px] text-white/55 leading-relaxed">
+                  Escalates to human broker team when risk exceeds 80%.
+                </p>
+              </div>
+
+              {/* Trust Shield Status (red glow when flagged) */}
+              <div
+                className={`rounded-3xl border backdrop-blur-xl p-4 transition-all ${
+                  latestClassification.trust_flag
+                    ? 'border-[#E5484D]/50 bg-[#E5484D]/[0.10] dg-red-glow'
+                    : 'border-white/[0.12] bg-white/[0.04]'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert
+                      strokeWidth={1.5}
+                      className={`h-4 w-4 ${
+                        latestClassification.trust_flag ? 'text-[#E5484D]' : 'text-[#D7EF5A]'
+                      }`}
+                    />
+                    <span className="text-[13px] text-[#FCFCFB]">Trust Shield Status</span>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] ${
+                      latestClassification.trust_flag
+                        ? 'bg-[#E5484D]/20 text-[#E5484D] border border-[#E5484D]/40'
+                        : 'bg-[#D7EF5A]/15 text-[#D7EF5A] border border-[#D7EF5A]/30'
+                    }`}
+                  >
+                    {latestClassification.trust_flag ? 'Flagged' : 'Safe'}
+                  </span>
+                </div>
+                <p className="text-[12px] text-white/60 leading-relaxed">
+                  {latestClassification.trust_flag && latestClassification.trust_reason
+                    ? latestClassification.trust_reason
+                    : 'Scans for advance fees, wire transfer spoofing, and off-platform coercion before money changes hands.'}
+                </p>
+              </div>
+
+              {/* Agent Link CTA */}
+              <div className="rounded-3xl border border-white/[0.12] bg-white/[0.04] backdrop-blur-xl p-4">
+                <div className="flex items-center gap-2 text-[13px] text-[#FCFCFB] mb-1.5">
+                  <Volume2 strokeWidth={1.5} className="h-4 w-4 text-[#D7EF5A]" />
+                  <span>Agent Escalation Channel</span>
+                </div>
+                <p className="text-[12px] text-white/60 mb-4 leading-relaxed">
+                  When deals heat up or threaten to walk, spoken audio briefings stream to Sarah Jenkins.
+                </p>
+                <button
+                  type="button"
+                  onClick={onNavigateToAgent}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/[0.16] bg-white/[0.06] hover:bg-white/[0.12] py-2 text-[12px] text-[#FCFCFB] transition-colors cursor-pointer"
+                >
+                  <span>Open Agent View</span>
+                  <ArrowUpRight strokeWidth={1.5} className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </aside>
         </div>
       </div>
     </div>
