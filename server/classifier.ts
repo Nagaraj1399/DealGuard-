@@ -173,23 +173,33 @@ async function classifyWithGemini(
   };
 
   const candidates: Array<{ model: string; useThinking: boolean }> = [
-    { model: 'gemini-4-hydrogen', useThinking: true },
+    { model: 'gemini-2.5-flash', useThinking: false },
     { model: 'gemini-3.1-flash-lite', useThinking: false },
+    { model: 'gemini-4-hydrogen', useThinking: true },
   ];
 
   let lastError: Error | null = null;
   for (const { model, useThinking } of candidates) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: userPrompt,
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          ...(useThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
-          responseMimeType: 'application/json',
-          responseSchema: schema,
-        },
-      });
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model,
+          contents: userPrompt,
+          config: {
+            systemInstruction: SYSTEM_PROMPT,
+            abortSignal: controller.signal,
+            ...(useThinking ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+          },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Gemini(${model}) timed out after 8000ms`)), 8000)
+        ),
+      ]);
+      clearTimeout(timeoutId);
 
       if (!response.text) {
         throw new Error(`Gemini(${model}) returned empty text`);
@@ -197,6 +207,7 @@ async function classifyWithGemini(
 
       return validateClassification(parseJsonObject(response.text));
     } catch (err) {
+      clearTimeout(timeoutId);
       lastError = err instanceof Error ? err : new Error(String(err));
       console.warn(`Gemini model fallback (${model}):`, lastError.message);
     }

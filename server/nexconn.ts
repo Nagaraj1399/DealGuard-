@@ -11,13 +11,13 @@ export async function issueNexconnToken(params: IssueTokenParams) {
   const appSecret = process.env.NEXCONN_APP_SECRET?.trim();
   const apiHost = process.env.NEXCONN_API_HOST?.trim() || 'https://api.us-east-1.nexconn.ai';
 
-  const nonce = Math.floor(Math.random() * 1000000).toString();
+  const nonce = crypto.randomInt(100000, 999999).toString();
   const timestamp = Date.now().toString();
 
-  // If live credentials are provided in env and host is configured
+  // If live credentials are provided in env and a reachable custom host is configured
   if (appKey && appSecret && apiHost && !apiHost.includes('nexconn.ai')) {
     try {
-      // Nexconn HMAC-SHA256 signature scheme
+      // Nexconn SHA-1 request signature: sha1(appSecret + nonce + timestamp)
       const stringToSign = `${appSecret}${nonce}${timestamp}`;
       const signature = crypto.createHash('sha1').update(stringToSign).digest('hex');
 

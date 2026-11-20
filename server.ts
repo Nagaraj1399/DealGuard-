@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-app.use(express.json());
+app.use(express.json({ limit: '64kb' }));
 app.use('/src/assets', express.static(path.resolve(__dirname, 'src/assets')));
 
 // API Routes
@@ -69,9 +69,15 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
     const { channelId } = req.params;
     const { senderId, senderName, senderRole, content, listingId } = req.body;
 
-    if (!content || !senderId) {
+    if (typeof content !== 'string' || !content.trim() || typeof senderId !== 'string' || !senderId.trim()) {
       return res.status(400).json({ error: 'Missing content or senderId' });
     }
+    const cleanContent = content.trim();
+    if (cleanContent.length > 4000) {
+      return res.status(400).json({ error: 'Message content exceeds 4000 characters' });
+    }
+    const validRole: 'buyer' | 'seller' | 'agent' =
+      senderRole === 'seller' || senderRole === 'agent' ? senderRole : 'buyer';
 
     const listing = listingId ? db.getListing(listingId) : db.getListings()[0];
     const previousMessages = db.getMessages(channelId);
@@ -85,13 +91,13 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
     };
     try {
       classification = await classifyMessage(
-        content,
+        cleanContent,
         previousMessages.map((m) => ({
           senderName: m.senderName,
           senderRole: m.senderRole,
           content: m.content,
         })),
-        senderRole || 'buyer'
+        validRole
       );
     } catch (classifyErr) {
       console.warn('Classifier failed, sending message unclassified:', classifyErr);
@@ -103,8 +109,8 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
       channelId,
       senderId,
       senderName: senderName || 'User',
-      senderRole: senderRole || 'buyer',
-      content,
+      senderRole: validRole,
+      content: cleanContent,
       timestamp: Date.now(),
       classification,
       trustFlag: classification.trust_flag,
@@ -308,6 +314,9 @@ app.post('/api/seed/reset', (req, res) => {
 // 11. Stream audio briefing WAV with full HTTP Range (206 Partial Content) support
 app.get('/api/audio/:id.wav', (req, res) => {
   const id = req.params.id;
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid audio briefing identifier' });
+  }
   let buffer = getAudio(id);
 
   if (!buffer) {

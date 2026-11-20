@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 /**
  * DealGuard Guardian Copilot Audio Briefing Synthesizer
  * Generates an audio briefing WAV stream for human agents.

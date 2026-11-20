@@ -1,10 +1,26 @@
+# Dependencies
 node_modules/
-build/
+
+# Build & coverage outputs
 dist/
+build/
 coverage/
-.DS_Store
-*.log
-.env*
+
+# Environment variables (keep .env.example tracked)
+.env
+.env.*
 !.env.example
+
+# Runtime local database & logs
 dev.db.json
+*.log
+npm-debug.log*
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Internal workspace metadata
 .aistudio/
