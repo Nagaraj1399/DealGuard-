@@ -142,7 +142,7 @@ app.post('/api/channels/:channelId/messages', async (req, res) => {
 
       // (b) Generate one-paragraph spoken briefing for agent
       const propertyTitle = listing ? listing.title : 'Marina Residence';
-      const propertyPrice = listing ? listing.formattedPrice : '$1.28M';
+      const propertyPrice = listing ? listing.formattedPrice : '₹10.75 Cr';
 
       const briefingTranscript = isRisk
         ? `Guardian Escalation Briefing: High walkaway risk detected for buyer ${senderName || 'Alex Chen'} on ${propertyTitle} (${propertyPrice}). Buyer stated: "${content}". Risk of loss is currently ${classification.risk_of_loss}%. Recommend immediate intervention: call buyer directly with priority weekend schedule access.`
